@@ -190,8 +190,8 @@ wasm_streaming = 0
 show_fullscreen_button = 1
 show_made_with_defold = 1
 show_console_banner = 1
-scale_mode = stretch
-transparent_graphics_context = 0
+scale_mode = fit
+transparent_graphics_context = 1
 
 [particle_fx]
 max_particle_count = 1024
