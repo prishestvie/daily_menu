@@ -70,7 +70,6 @@ var CUSTOM_PARAMETERS = {
     resize_window_callback: function() {
         var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
-        // Hack for iOS when exit from Fullscreen mode
         if (is_iOS) {
             window.scrollTo(0, 0);
         }
@@ -79,24 +78,20 @@ var CUSTOM_PARAMETERS = {
         var canvas_container = document.getElementById('canvas-container');
         var game_canvas = document.getElementById('canvas');
         var buttons_bar = document.querySelector('.buttons-background');
+        if (!app_container || !canvas_container || !game_canvas) {
+            return;
+        }
 
         var viewport = window.visualViewport;
-        var innerWidth = viewport ? viewport.width : window.innerWidth;
-        var innerHeight = viewport ? viewport.height : window.innerHeight;
+        var innerWidth = Math.round(viewport ? viewport.width : (document.documentElement.clientWidth || window.innerWidth));
+        var innerHeight = Math.round(viewport ? viewport.height : (document.documentElement.clientHeight || window.innerHeight));
 
         var buttonHeight = 0;
         if (buttons_bar && window.getComputedStyle(buttons_bar).display !== 'none') {
             buttonHeight = buttons_bar.offsetHeight || 42;
         }
 
-        var gameAreaHeight = innerHeight - buttonHeight;
-        if (CUSTOM_PARAMETERS.resize_window_prev_inner_width == innerWidth &&
-            CUSTOM_PARAMETERS.resize_window_prev_inner_height == gameAreaHeight)
-        {
-            return;
-        }
-        CUSTOM_PARAMETERS.resize_window_prev_inner_width = innerWidth;
-        CUSTOM_PARAMETERS.resize_window_prev_inner_height = gameAreaHeight;
+        var gameAreaHeight = Math.max(1, innerHeight - buttonHeight);
 
         var designWidth = 1080;
         var designHeight = 1980;
@@ -106,31 +101,35 @@ var CUSTOM_PARAMETERS = {
         var width;
         var height;
 
-        // Fit game content within the available viewport area
         if (actualRatio > targetRatio) {
             height = gameAreaHeight;
-            width = height * targetRatio;
+            width = Math.round(height * targetRatio);
         } else {
             width = innerWidth;
-            height = width / targetRatio;
+            height = Math.round(width / targetRatio);
         }
 
         var dpi = window.devicePixelRatio || 1;
 
-        app_container.style.marginLeft = "0px";
-        app_container.style.marginTop = "0px";
+        app_container.style.margin = "0px";
         app_container.style.width = innerWidth + "px";
         app_container.style.height = innerHeight + "px";
 
-        if (canvas_container) {
-            canvas_container.style.width = innerWidth + "px";
-            canvas_container.style.height = gameAreaHeight + "px";
-        }
+        canvas_container.style.width = innerWidth + "px";
+        canvas_container.style.height = gameAreaHeight + "px";
 
-        game_canvas.style.width = Math.floor(width) + "px";
-        game_canvas.style.height = Math.floor(height) + "px";
+        game_canvas.style.width = width + "px";
+        game_canvas.style.height = height + "px";
+        game_canvas.style.marginLeft = Math.round((innerWidth - width) / 2) + "px";
+        game_canvas.style.marginTop = Math.round((gameAreaHeight - height) / 2) + "px";
         game_canvas.width = Math.floor(width * dpi);
         game_canvas.height = Math.floor(height * dpi);
+        game_canvas.widthNative = game_canvas.width;
+        game_canvas.heightNative = game_canvas.height;
+
+        if (typeof Browser !== 'undefined' && Browser.updateResizeListeners) {
+            Browser.updateResizeListeners();
+        }
     }
 };
 

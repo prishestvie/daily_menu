@@ -13,37 +13,29 @@
 	* Selecting a text outside the canvas, then clicking+draging would
 	* drag the selected text but block mouse down/up events to the engine.
 	*/
-	html {
+	html, body {
 		width: 100%;
 		height: 100%;
-		height: -webkit-fill-available;
-	}
-
-	body {
-		position: fixed; /* Prevent overscroll */
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		height: 100dvh;
-		height: -webkit-fill-available;
 		margin: 0;
 		padding: 0;
-		padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 		overflow: hidden;
 		overscroll-behavior: none;
 	}
 
-	.canvas-app-container {
-		width: 100%;
-		height: 100%;
+	body {
 		position: fixed;
 		inset: 0;
-		display: flex;
-		flex-direction: column;
-		align-items: stretch;
-		justify-content: flex-start;
+		background-color: #ffffff;
+	}
+
+	.canvas-app-container {
+		position: fixed;
+		inset: 0;
+		width: 100%;
+		height: 100%;
+		box-sizing: border-box;
+		padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
 		overflow: hidden;
-		margin: 0 !important;
 	}
 
 	.canvas-app-container:-webkit-full-screen {
@@ -52,25 +44,21 @@
 		height: auto;
 	}
 
+	#canvas-container {
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		bottom: 42px;
+		overflow: hidden;
+	}
+
 	#canvas {
 		outline: none;
 		border: 0;
 		display: block;
 		touch-action: none;
 		-ms-touch-action: none;
-		max-width: 100%;
-		max-height: 100%;
-	}
-
-	#canvas-container {
-		position: relative;
-		flex: 1 1 auto;
-		min-height: 0;
-		width: 100%;
-		display: flex;
-		align-items: center;
-		justify-content: center;
-		overflow: hidden;
 	}
 
 	canvas:focus, canvas:active {
@@ -144,22 +132,23 @@
 	}
 
 	.buttons-background {
+		position: absolute;
+		left: 0;
+		right: 0;
+		bottom: 0;
 		background-color: #ffffff;
 		width: 100%;
 		height: 42px;
-		flex: 0 0 auto;
-		padding-bottom: env(safe-area-inset-bottom);
-		box-sizing: content-box;
 	}
 
 	@media (max-width: 768px), (hover: none) and (pointer: coarse) {
+		#canvas-container {
+			bottom: 0;
+		}
+
 		.buttons-background {
 			display: none;
 		}
-	}
-
-	body {
-		background-color: #ffffff;
 	}
 
 	.canvas-app-container {
@@ -212,8 +201,91 @@
 	</script>
 	<script id='engine-loader' type='text/javascript' src="dmloader.js"></script>
 	<script id='engine-setup' type='text/javascript'>
-		// From here you can configure game startup parameters via the CUSTOM_PARAMETERS object,
-		// override ProgressView to create your own loader. See dmloader.js for more details.
+		(function() {
+			var DESIGN_WIDTH = 1080;
+			var DESIGN_HEIGHT = 1980;
+
+			function getButtonHeight() {
+				var buttons = document.querySelector('.buttons-background');
+				if (!buttons || window.getComputedStyle(buttons).display === 'none') {
+					return 0;
+				}
+				return buttons.offsetHeight || 42;
+			}
+
+			function getViewportSize() {
+				var width = document.documentElement.clientWidth || window.innerWidth;
+				var height = document.documentElement.clientHeight || window.innerHeight;
+				if (window.visualViewport) {
+					width = window.visualViewport.width;
+					height = window.visualViewport.height;
+				}
+				return { width: width, height: height };
+			}
+
+			function resizeGameCanvas() {
+				var app_container = document.getElementById('app-container');
+				var canvas_container = document.getElementById('canvas-container');
+				var game_canvas = document.getElementById('canvas');
+				if (!app_container || !canvas_container || !game_canvas) {
+					return;
+				}
+
+				var viewport = getViewportSize();
+				var innerWidth = Math.round(viewport.width);
+				var innerHeight = Math.round(viewport.height);
+				var buttonHeight = getButtonHeight();
+				var gameAreaHeight = Math.max(1, innerHeight - buttonHeight);
+				var targetRatio = DESIGN_WIDTH / DESIGN_HEIGHT;
+				var actualRatio = innerWidth / gameAreaHeight;
+				var width;
+				var height;
+
+				if (actualRatio > targetRatio) {
+					height = gameAreaHeight;
+					width = Math.round(height * targetRatio);
+				} else {
+					width = innerWidth;
+					height = Math.round(width / targetRatio);
+				}
+
+				var dpi = window.devicePixelRatio || 1;
+
+				app_container.style.margin = '0';
+				app_container.style.width = innerWidth + 'px';
+				app_container.style.height = innerHeight + 'px';
+
+				canvas_container.style.width = innerWidth + 'px';
+				canvas_container.style.height = gameAreaHeight + 'px';
+
+				game_canvas.style.width = width + 'px';
+				game_canvas.style.height = height + 'px';
+				game_canvas.style.marginLeft = Math.round((innerWidth - width) / 2) + 'px';
+				game_canvas.style.marginTop = Math.round((gameAreaHeight - height) / 2) + 'px';
+				game_canvas.width = Math.floor(width * dpi);
+				game_canvas.height = Math.floor(height * dpi);
+				game_canvas.widthNative = game_canvas.width;
+				game_canvas.heightNative = game_canvas.height;
+
+				if (typeof Browser !== 'undefined' && Browser.updateResizeListeners) {
+					Browser.updateResizeListeners();
+				}
+			}
+
+			CUSTOM_PARAMETERS.resize_window_callback = resizeGameCanvas;
+			CUSTOM_PARAMETERS.start_success = function() {
+				resizeGameCanvas();
+				requestAnimationFrame(resizeGameCanvas);
+				setTimeout(resizeGameCanvas, 100);
+				setTimeout(resizeGameCanvas, 500);
+			};
+
+			window.addEventListener('DOMContentLoaded', resizeGameCanvas);
+			window.addEventListener('orientationchange', function() {
+				setTimeout(resizeGameCanvas, 100);
+				setTimeout(resizeGameCanvas, 300);
+			});
+		})();
 	</script>
 	<script id='engine-start' type='text/javascript'>
 		var runningFromFileWarning = document.getElementById("running-from-file-warning");
@@ -223,6 +295,14 @@
 		else {
 			EngineLoader.load("canvas", "daily_menu");
 			runningFromFileWarning.parentNode.removeChild(runningFromFileWarning);
+
+			if (typeof ResizeObserver !== 'undefined') {
+				var resizeObserver = new ResizeObserver(function() {
+					CUSTOM_PARAMETERS.resize_window_callback();
+				});
+				resizeObserver.observe(document.documentElement);
+				resizeObserver.observe(document.body);
+			}
 		}
 	</script>
 </body>
