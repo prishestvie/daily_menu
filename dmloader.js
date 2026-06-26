@@ -69,67 +69,59 @@ var CUSTOM_PARAMETERS = {
     resize_window_prev_inner_height: -1,
     resize_window_callback: function() {
         var is_iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-
+        var buttonHeight = 0;
+        
+        buttonHeight = 42;
+        
+        
+        buttonHeight = 42;
+        
+        // Hack for iOS when exit from Fullscreen mode
         if (is_iOS) {
             window.scrollTo(0, 0);
         }
 
         var app_container = document.getElementById('app-container');
-        var canvas_container = document.getElementById('canvas-container');
         var game_canvas = document.getElementById('canvas');
-        var buttons_bar = document.querySelector('.buttons-background');
-        if (!app_container || !canvas_container || !game_canvas) {
+        var innerWidth = window.innerWidth;
+        var innerHeight = window.innerHeight - buttonHeight;
+        if (CUSTOM_PARAMETERS.resize_window_prev_inner_width == innerWidth &&
+            CUSTOM_PARAMETERS.resize_window_prev_inner_height == innerHeight)
+        {
             return;
         }
-
-        var viewport = window.visualViewport;
-        var innerWidth = Math.round(viewport ? viewport.width : (document.documentElement.clientWidth || window.innerWidth));
-        var innerHeight = Math.round(viewport ? viewport.height : (document.documentElement.clientHeight || window.innerHeight));
-
-        var buttonHeight = 0;
-        if (buttons_bar && window.getComputedStyle(buttons_bar).display !== 'none') {
-            buttonHeight = buttons_bar.offsetHeight || 42;
-        }
-
-        var gameAreaHeight = Math.max(1, innerHeight - buttonHeight);
-
-        var designWidth = 1080;
-        var designHeight = 1980;
-        var targetRatio = designWidth / designHeight;
-        var actualRatio = innerWidth / gameAreaHeight;
-
-        var width;
-        var height;
-
+        CUSTOM_PARAMETERS.resize_window_prev_inner_width = innerWidth;
+        CUSTOM_PARAMETERS.resize_window_prev_inner_height = innerHeight;
+        var width = 1080;
+        var height = 1980;
+        var targetRatio = width / height;
+        var actualRatio = innerWidth / innerHeight;
+    
+    
+    
+        //Fit
         if (actualRatio > targetRatio) {
-            height = gameAreaHeight;
-            width = Math.round(height * targetRatio);
-        } else {
-            width = innerWidth;
-            height = Math.round(width / targetRatio);
+            width = innerHeight * targetRatio;
+            height = innerHeight;
+            app_container.style.marginLeft = ((innerWidth - width) / 2) + "px";
+            app_container.style.marginTop = "0px";
         }
-
-        var dpi = window.devicePixelRatio || 1;
-
-        app_container.style.margin = "0px";
-        app_container.style.width = innerWidth + "px";
-        app_container.style.height = innerHeight + "px";
-
-        canvas_container.style.width = innerWidth + "px";
-        canvas_container.style.height = gameAreaHeight + "px";
-
-        game_canvas.style.width = width + "px";
-        game_canvas.style.height = height + "px";
-        game_canvas.style.marginLeft = Math.round((innerWidth - width) / 2) + "px";
-        game_canvas.style.marginTop = Math.round((gameAreaHeight - height) / 2) + "px";
+        else {
+            width = innerWidth;
+            height = innerWidth / targetRatio;
+            app_container.style.marginLeft = "0px";
+            app_container.style.marginTop = ((innerHeight - height) / 2) + "px";
+        }
+    
+    
+        var dpi = 1;
+    
+        dpi = window.devicePixelRatio || 1;
+    
+        app_container.style.width = width + "px";
+        app_container.style.height = height + buttonHeight + "px";
         game_canvas.width = Math.floor(width * dpi);
         game_canvas.height = Math.floor(height * dpi);
-        game_canvas.widthNative = game_canvas.width;
-        game_canvas.heightNative = game_canvas.height;
-
-        if (typeof Browser !== 'undefined' && Browser.updateResizeListeners) {
-            Browser.updateResizeListeners();
-        }
     }
 };
 
@@ -466,10 +458,6 @@ var EngineLoader = {
             window.addEventListener('resize', callback, false);
             window.addEventListener('orientationchange', callback, false);
             window.addEventListener('focus', callback, false);
-            if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', callback, false);
-                window.visualViewport.addEventListener('scroll', callback, false);
-            }
         }
     }
 };
