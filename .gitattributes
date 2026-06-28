@@ -9,6 +9,7 @@
 *.arci binary
 
 # Defold-specific binary/metadata files
+*.projectc binary
 *.dmanifest binary
 *.public.der binary
 
