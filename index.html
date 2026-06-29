@@ -206,6 +206,24 @@
 	<script id='engine-setup' type='text/javascript'>
 		// From here you can configure game startup parameters via the CUSTOM_PARAMETERS object,
 		// override ProgressView to create your own loader. See dmloader.js for more details.
+
+		// Override the resize callback to preserve zoom state after engine resizes.
+		// The engine's default resize_window_callback sets app-container dimensions
+		// on resize/orientationchange/focus events. We wrap it so that after the
+		// engine resizes the container, our zoom transform is re-applied.
+		(function() {
+			var origResize = CUSTOM_PARAMETERS.resize_window_callback;
+			if (typeof origResize === 'function') {
+				CUSTOM_PARAMETERS.resize_window_callback = function() {
+					origResize();
+					// Re-apply zoom after the engine has set its dimensions.
+					// The zoom script (below) exposes a global function for this.
+					if (typeof window.__applyZoom === 'function') {
+						window.__applyZoom();
+					}
+				};
+			}
+		})();
 	</script>
 	<script id='engine-start' type='text/javascript'>
 		var runningFromFileWarning = document.getElementById("running-from-file-warning");
@@ -256,6 +274,10 @@
 				zoomContainer.style.height = h + 'px';
 			}
 		}
+
+		// Expose applyZoom globally so the engine-setup script can call it
+		// after the engine's resize_window_callback runs.
+		window.__applyZoom = applyZoom;
 
 		// --- Zoom toward a specific viewport point (clientX, clientY) ---
 		// Keeps the point under (clientX, clientY) visually fixed while changing scale.
