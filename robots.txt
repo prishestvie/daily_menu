@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /
 Sitemap: https://menunaden.ru/sitemap.xml
+AdsTxt: https://menunaden.ru/ads.txt
 
 # Yandex-specific
 User-agent: Yandex
