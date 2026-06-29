@@ -130,7 +130,7 @@
 	.canvas-app-container {
 		background: rgba(250,252,255,1);
 		background: -moz-linear-gradient(-45deg, rgba(250,252,255,1) 0%, rgba(250,252,255,1) 50%, rgba(245,249,255,1) 50%, rgba(245,249,255,1) 100%);
-		background: -webkit-gradient(left top, right bottom, color-stop(0%, rgba(250,252,255,1)), color-stop(50%, rgba(250,252,255,1)), color-stop(50%, rgba(245,249,255,1)), color-stop(50%, rgba(245,249,255,1)));
+		background: -webkit-gradient(left top, right bottom, color-stop(0%, rgba(250,252,255,1)), color-stop(50%, rgba(250,252,255,1)), color-stop(50%, rgba(245,249,255,1)), color-stop(100%, rgba(245,249,255,1)));
 		background: -webkit-linear-gradient(-45deg, rgba(250,252,255,1) 0%, rgba(250,252,255,1) 50%, rgba(245,249,255,1) 50%, rgba(245,249,255,1) 100%);
 		background: -o-linear-gradient(-45deg, rgba(250,252,255,1) 0%, rgba(250,252,255,1) 50%, rgba(245,249,255,1) 50%, rgba(245,249,255,1) 100%);
 		background: -ms-linear-gradient(-45deg, rgba(250,252,255,1) 0%, rgba(250,252,255,1) 50%, rgba(245,249,255,1) 50%, rgba(245,249,255,1) 100%);
@@ -142,48 +142,6 @@
 		background-repeat:no-repeat;
 		background-position: center center;
 		background-image: url("logo.png");
-	}
-
-	/* Error overlay styles */
-	#error-overlay {
-		display: none;
-		position: fixed;
-		top: 0;
-		left: 0;
-		width: 100%;
-		height: 100%;
-		background: rgba(250,252,255,0.95);
-		z-index: 1000;
-		align-items: center;
-		justify-content: center;
-		flex-direction: column;
-		font-family: sans-serif;
-		text-align: center;
-		padding: 20px;
-		box-sizing: border-box;
-	}
-	#error-overlay h2 {
-		color: #e74c3c;
-		margin-bottom: 10px;
-	}
-	#error-overlay p {
-		color: #555;
-		margin-bottom: 20px;
-		max-width: 400px;
-		line-height: 1.5;
-	}
-	#error-overlay .retry-btn {
-		background: #1a72eb;
-		color: white;
-		border: none;
-		padding: 12px 32px;
-		border-radius: 6px;
-		font-size: 16px;
-		cursor: pointer;
-		-webkit-tap-highlight-color: transparent;
-	}
-	#error-overlay .retry-btn:active {
-		background: #0f5bc4;
 	}
 	</style>
 </head>
@@ -208,14 +166,6 @@
 			<div class="link">Made with <a href="https://defold.com/" target="_blank">Defold</a></div>
 		</div>
 	</div>
-
-	<!-- Error overlay for mobile-friendly error display -->
-	<div id="error-overlay">
-		<h2>⚠️ Loading Error</h2>
-		<p id="error-message">Something went wrong while loading the game. This can happen on mobile devices due to network or browser limitations.</p>
-		<button class="retry-btn" onclick="location.reload()">Reload Game</button>
-	</div>
-
 	<!-- -->
 	<script>
 		// Fallback to make sure globalThis is available when running in an old
@@ -229,71 +179,6 @@
 	<script id='engine-setup' type='text/javascript'>
 		// From here you can configure game startup parameters via the CUSTOM_PARAMETERS object,
 		// override ProgressView to create your own loader. See dmloader.js for more details.
-
-		// Cache-busting for archive files to prevent GitHub Pages stale cache issues on mobile.
-		// Uses a version string that changes only when the game is rebuilt, so caching still works
-		// between page loads of the same build version.
-		var _buildVersion = '1.0';
-		var _origArchiveFilter = CUSTOM_PARAMETERS.archive_location_filter;
-		CUSTOM_PARAMETERS.archive_location_filter = function(path) {
-			var url = _origArchiveFilter(path);
-			var separator = url.indexOf('?') === -1 ? '?' : '&';
-			return url + separator + 'v=' + _buildVersion;
-		};
-
-		// Better error handling - show a visible error overlay on mobile
-		CUSTOM_PARAMETERS.start_error = function(error) {
-			console.error("Engine start error:", error);
-			var overlay = document.getElementById('error-overlay');
-			var msgEl = document.getElementById('error-message');
-			if (overlay) {
-				if (error && error.message) {
-					msgEl.textContent = error.message;
-				} else if (typeof error === 'string') {
-					msgEl.textContent = error;
-				}
-				overlay.style.display = 'flex';
-			}
-		};
-
-		// Handle archive file download failures on unreliable mobile networks
-		CUSTOM_PARAMETERS.can_not_download_file_callback = function(error) {
-			console.error("Failed to download archive file:", error);
-			var overlay = document.getElementById('error-overlay');
-			var msgEl = document.getElementById('error-message');
-			if (overlay) {
-				msgEl.textContent = "Failed to download game data. Please check your internet connection and try again.";
-				overlay.style.display = 'flex';
-			}
-		};
-
-		// Handle WebGL not supported gracefully on mobile
-		CUSTOM_PARAMETERS.unsupported_webgl_callback = function() {
-			var e = document.getElementById("webgl-not-supported");
-			e.style.display = "block";
-		};
-
-		// Log progress for debugging mobile issues
-		CUSTOM_PARAMETERS.update_progress = function(progress) {
-			if (progress < 0 || progress > 100) {
-				console.warn("Unexpected progress value:", progress);
-			}
-		};
-
-		// Debounce resize/orientation events on mobile to avoid rapid re-renders
-		// that can cause WebGL context issues during scene transitions
-		var _origResizeCallback = CUSTOM_PARAMETERS.resize_window_callback;
-		CUSTOM_PARAMETERS.resize_window_callback = function() {
-			if (CUSTOM_PARAMETERS._resizeTimer) {
-				clearTimeout(CUSTOM_PARAMETERS._resizeTimer);
-			}
-			CUSTOM_PARAMETERS._resizeTimer = setTimeout(function() {
-				CUSTOM_PARAMETERS._resizeTimer = null;
-				if (typeof _origResizeCallback === 'function') {
-					_origResizeCallback();
-				}
-			}, 200);
-		};
 	</script>
 	<script id='engine-start' type='text/javascript'>
 		var runningFromFileWarning = document.getElementById("running-from-file-warning");
