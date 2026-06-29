@@ -21,6 +21,16 @@
 *.ico binary
 *.svg text
 
+# Audio - treat as binary
+*.wav binary
+*.ogg binary
+*.mp3 binary
+
+# Fonts - treat as binary
+*.ttf binary
+*.woff binary
+*.woff2 binary
+
 # Ensure LF line endings for web-facing text files
 *.html text eol=lf
 *.css text eol=lf
