@@ -256,48 +256,49 @@
 		var maxScale = 4.0;
 		var isPinching = false;
 		var lastTouchDistance = 0;
+		// Guards against the double-tap handler incorrectly firing when the
+		// second finger is lifted after a pinch (touchend fires per-finger).
+		var pinchEnded = false;
 
-		// --- Re-apply the full transform + container sizing ---
-		// This is the single function that syncs the DOM to our state variables.
-		// It MUST be called after any change to scale/translateX/translateY,
-		// and also after any engine-triggered resize so the zoom stays applied.
-		function applyZoom() {
-			// Always re-apply the transform from our state variables
-			zoomContainer.style.transform =
-				'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
+		// --- Store the natural (unscaled) container dimensions ---
+		var naturalW = 0;
+		var naturalH = 0;
 
-			// Sync container dimensions so scroll area matches scaled content
+		function captureNaturalSize() {
 			var w = appContainer.offsetWidth;
 			var h = appContainer.offsetHeight;
 			if (w > 0 && h > 0) {
-				zoomContainer.style.width = w + 'px';
-				zoomContainer.style.height = h + 'px';
+				naturalW = w;
+				naturalH = h;
 			}
 		}
 
-		// Expose applyZoom globally so the engine-setup script can call it
-		// after the engine's resize_window_callback runs.
+		// --- Re-apply the full transform + container sizing ---
+		function applyZoom() {
+			zoomContainer.style.transform =
+				'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
+
+			if (naturalW > 0 && naturalH > 0) {
+				zoomContainer.style.width = naturalW + 'px';
+				zoomContainer.style.height = naturalH + 'px';
+			}
+		}
+
 		window.__applyZoom = applyZoom;
 
-		// --- Zoom toward a specific viewport point (clientX, clientY) ---
-		// Keeps the point under (clientX, clientY) visually fixed while changing scale.
+		// --- Zoom toward a specific viewport point ---
 		function zoomToward(clientX, clientY, newScale) {
 			newScale = Math.max(minScale, Math.min(maxScale, newScale));
 			if (newScale === scale) return;
 
 			var wrapperRect = zoomWrapper.getBoundingClientRect();
-
-			// Viewport point relative to the wrapper
 			var vx = clientX - wrapperRect.left;
 			var vy = clientY - wrapperRect.top;
 
-			// Unscaled content point under the cursor, given current scroll + transform
 			var contentX = (vx + zoomWrapper.scrollLeft - translateX) / scale;
 			var contentY = (vy + zoomWrapper.scrollTop  - translateY) / scale;
 
 			scale = newScale;
-
-			// Compute new translate so the same content point stays at the same viewport position
 			translateX = vx + zoomWrapper.scrollLeft - contentX * scale;
 			translateY = vy + zoomWrapper.scrollTop  - contentY * scale;
 
@@ -322,6 +323,7 @@
 		canvasContainer.addEventListener('touchstart', function(e) {
 			if (e.touches.length === 2) {
 				isPinching = true;
+				pinchEnded = false;
 				lastTouchDistance = getTouchDistance(e.touches);
 				e.preventDefault();
 			}
@@ -331,6 +333,7 @@
 		canvasContainer.addEventListener('touchmove', function(e) {
 			if (e.touches.length === 2) {
 				isPinching = true;
+				pinchEnded = false;
 				var currentDistance = getTouchDistance(e.touches);
 				var center = getTouchCenter(e.touches);
 
@@ -346,6 +349,11 @@
 		canvasContainer.addEventListener('touchend', function(e) {
 			if (e.touches.length < 2) {
 				isPinching = false;
+				// Mark that a pinch just ended so the double-tap handler
+				// ignores the second finger's touchend event.
+				pinchEnded = true;
+				// Clear the flag after a short delay so future double-taps work.
+				setTimeout(function() { pinchEnded = false; }, 500);
 			}
 		}, { passive: false });
 
@@ -361,6 +369,10 @@
 		// --- Double-tap to reset zoom ---
 		var lastTapTime = 0;
 		canvasContainer.addEventListener('touchend', function(e) {
+			// Ignore if a pinch just ended (prevents the second finger lift
+			// from being misinterpreted as a double-tap).
+			if (pinchEnded) return;
+
 			if (e.changedTouches.length === 1 && !isPinching) {
 				var now = Date.now();
 				if (now - lastTapTime < 300) {
@@ -376,19 +388,26 @@
 			}
 		}, { passive: false });
 
-		// --- Guard: re-apply zoom whenever the engine resizes the container ---
-		// The Defold engine may change #app-container dimensions via resize_window_callback.
-		// We use a ResizeObserver to re-apply our transform + dimensions after any such change.
-		var resizeObserver = new ResizeObserver(function() {
+		// --- Capture natural size once the engine has settled ---
+		function recaptureNaturalSize() {
+			captureNaturalSize();
 			applyZoom();
+		}
+
+		// --- Guard: re-apply zoom whenever the engine resizes the container ---
+		var rafId = null;
+		var resizeObserver = new ResizeObserver(function() {
+			if (rafId) cancelAnimationFrame(rafId);
+			rafId = requestAnimationFrame(function() {
+				rafId = null;
+				captureNaturalSize();
+				applyZoom();
+			});
 		});
 		resizeObserver.observe(appContainer);
 
-		// Also guard against the engine directly modifying #zoom-container styles
-		// (e.g. if it sets inline width/height that would override our transform).
-		// We watch for attribute changes and re-apply our transform if it gets cleared.
+		// Guard against the engine directly modifying #zoom-container styles
 		var zoomGuard = new MutationObserver(function() {
-			// If the transform was cleared or overwritten, restore it
 			var currentTransform = zoomContainer.style.transform;
 			var expectedTransform = 'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
 			if (currentTransform !== expectedTransform) {
@@ -397,15 +416,14 @@
 		});
 		zoomGuard.observe(zoomContainer, { attributes: true, attributeFilter: ['style'] });
 
-		// Also re-apply on window resize
 		window.addEventListener('resize', function() {
-			applyZoom();
+			recaptureNaturalSize();
 		});
 
-		// Initial sync after a short delay (engine needs time to set up)
-		setTimeout(applyZoom, 500);
-		setTimeout(applyZoom, 1000);
-		setTimeout(applyZoom, 2000);
+		// Initial capture + sync after engine setup
+		setTimeout(recaptureNaturalSize, 500);
+		setTimeout(recaptureNaturalSize, 1000);
+		setTimeout(recaptureNaturalSize, 2000);
 
 	})();
 	</script>
