@@ -1,0 +1,28 @@
+User-agent: *
+Allow: /
+Sitemap: https://menunaden.ru/sitemap.xml
+
+# Yandex-specific
+User-agent: Yandex
+Allow: /
+Host: https://menunaden.ru
+Clean-param: utm_source&utm_medium&utm_campaign
+
+# Google-specific
+User-agent: Googlebot
+Allow: /
+
+# Mail.ru
+User-agent: Mail.Ru
+Allow: /
+
+# Rambler
+User-agent: Rambler
+Allow: /
+
+# Sputnik
+User-agent: Sputnik
+Allow: /
+
+# Disallow non-content paths
+Disallow: /archive/
