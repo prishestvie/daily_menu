@@ -37,6 +37,7 @@
 	#zoom-container {
 		transform-origin: 0 0;
 		/* width/height set dynamically via JS */
+		/* transform: scale(s) translate(px, py) set dynamically via JS */
 	}
 
 	.canvas-app-container {
@@ -237,7 +238,7 @@
 		}
 	</script>
 
-	<!-- Pinch-to-zoom and native scaling support -->
+	<!-- Pinch-to-zoom and native scaling support with dynamic zoom origin -->
 	<script>
 	(function() {
 		'use strict';
@@ -251,13 +252,16 @@
 
 		// --- State ---
 		var scale = 1;
+		var translateX = 0;
+		var translateY = 0;
 		var minScale = 0.5;
 		var maxScale = 4.0;
 		var isPinching = false;
 		var lastTouchDistance = 0;
+		var lastTouchCenterX = 0;
+		var lastTouchCenterY = 0;
 
 		// --- Sizing ---
-		// The zoom-container must match the app-container size so transform-origin 0 0 works
 		function syncContainerSize() {
 			var w = appContainer.offsetWidth;
 			var h = appContainer.offsetHeight;
@@ -267,16 +271,53 @@
 			}
 		}
 
-		// --- Apply zoom transform ---
+		// --- Apply zoom + pan transform ---
+		// transform: scale(s) translate(px, py)
+		// With transform-origin: 0 0, the translate offsets are in the SCALED coordinate space.
+		// We compute translate so that a given content point (cx, cy) stays visually fixed.
 		function applyZoom() {
-			zoomContainer.style.transform = 'scale(' + scale + ')';
-			// Adjust the wrapper scroll area to fit the scaled content
+			zoomContainer.style.transform =
+				'translate(' + translateX + 'px, ' + translateY + 'px) scale(' + scale + ')';
 			var w = appContainer.offsetWidth;
 			var h = appContainer.offsetHeight;
 			if (w > 0 && h > 0) {
 				zoomContainer.style.width = w + 'px';
 				zoomContainer.style.height = h + 'px';
 			}
+		}
+
+		// --- Zoom toward a specific viewport point (clientX, clientY) ---
+		// This keeps the point under (clientX, clientY) visually fixed while changing scale.
+		function zoomToward(clientX, clientY, newScale) {
+			// Clamp
+			newScale = Math.max(minScale, Math.min(maxScale, newScale));
+			if (newScale === scale) return;
+
+			// Get the wrapper's bounding rect (viewport-relative)
+			var wrapperRect = zoomWrapper.getBoundingClientRect();
+
+			// The point in the viewport (relative to wrapper)
+			var vx = clientX - wrapperRect.left;
+			var vy = clientY - wrapperRect.top;
+
+			// The point in the unscaled content, given current scroll + transform:
+			// Current content position of viewport point (vx, vy):
+			//   contentX = (vx + scrollLeft - translateX) / scale
+			//   contentY = (vy + scrollTop  - translateY) / scale
+			var contentX = (vx + zoomWrapper.scrollLeft - translateX) / scale;
+			var contentY = (vy + zoomWrapper.scrollTop  - translateY) / scale;
+
+			// Update scale
+			scale = newScale;
+
+			// After scaling, we want the same content point to appear at the same viewport position.
+			// New translate must satisfy:
+			//   vx = contentX * scale - scrollLeft + translateX
+			//   translateX = vx + scrollLeft - contentX * scale
+			translateX = vx + zoomWrapper.scrollLeft - contentX * scale;
+			translateY = vy + zoomWrapper.scrollTop  - contentY * scale;
+
+			applyZoom();
 		}
 
 		// --- Get distance between two touches ---
@@ -286,11 +327,22 @@
 			return Math.sqrt(dx * dx + dy * dy);
 		}
 
+		// --- Get midpoint between two touches ---
+		function getTouchCenter(touches) {
+			return {
+				x: (touches[0].clientX + touches[1].clientX) / 2,
+				y: (touches[0].clientY + touches[1].clientY) / 2
+			};
+		}
+
 		// --- Touch start: detect multi-touch ---
 		canvasContainer.addEventListener('touchstart', function(e) {
 			if (e.touches.length === 2) {
 				isPinching = true;
 				lastTouchDistance = getTouchDistance(e.touches);
+				var center = getTouchCenter(e.touches);
+				lastTouchCenterX = center.x;
+				lastTouchCenterY = center.y;
 				e.preventDefault();
 			}
 		}, { passive: false });
@@ -300,18 +352,18 @@
 			if (e.touches.length === 2) {
 				isPinching = true;
 				var currentDistance = getTouchDistance(e.touches);
+				var center = getTouchCenter(e.touches);
 
 				// Calculate scale delta
 				var scaleDelta = currentDistance / lastTouchDistance;
 				var newScale = scale * scaleDelta;
 
-				// Clamp scale
-				newScale = Math.max(minScale, Math.min(maxScale, newScale));
-
-				scale = newScale;
-				applyZoom();
+				// Zoom toward the midpoint of the two fingers
+				zoomToward(center.x, center.y, newScale);
 
 				lastTouchDistance = currentDistance;
+				lastTouchCenterX = center.x;
+				lastTouchCenterY = center.y;
 
 				e.preventDefault();
 			}
@@ -330,25 +382,30 @@
 				e.preventDefault();
 				var delta = -e.deltaY * 0.001;
 				var newScale = scale * (1 + delta);
-				newScale = Math.max(minScale, Math.min(maxScale, newScale));
-				scale = newScale;
-				applyZoom();
+				// Zoom toward the mouse cursor position
+				zoomToward(e.clientX, e.clientY, newScale);
 			}
 		}, { passive: false });
 
-		// --- Zoom controls ---
+		// --- Zoom controls (zoom toward center of viewport) ---
 		document.getElementById('zoom-in-btn').addEventListener('click', function() {
-			scale = Math.min(maxScale, scale * 1.2);
-			applyZoom();
+			var wrapperRect = zoomWrapper.getBoundingClientRect();
+			var centerX = wrapperRect.left + wrapperRect.width / 2;
+			var centerY = wrapperRect.top + wrapperRect.height / 2;
+			zoomToward(centerX, centerY, scale * 1.2);
 		});
 
 		document.getElementById('zoom-out-btn').addEventListener('click', function() {
-			scale = Math.max(minScale, scale / 1.2);
-			applyZoom();
+			var wrapperRect = zoomWrapper.getBoundingClientRect();
+			var centerX = wrapperRect.left + wrapperRect.width / 2;
+			var centerY = wrapperRect.top + wrapperRect.height / 2;
+			zoomToward(centerX, centerY, scale / 1.2);
 		});
 
 		document.getElementById('zoom-reset-btn').addEventListener('click', function() {
 			scale = 1;
+			translateX = 0;
+			translateY = 0;
 			applyZoom();
 			zoomWrapper.scrollTop = 0;
 			zoomWrapper.scrollLeft = 0;
@@ -362,6 +419,8 @@
 				if (now - lastTapTime < 300) {
 					// Double tap detected
 					scale = 1;
+					translateX = 0;
+					translateY = 0;
 					applyZoom();
 					zoomWrapper.scrollTop = 0;
 					zoomWrapper.scrollLeft = 0;
@@ -372,19 +431,16 @@
 		}, { passive: false });
 
 		// --- Sync container size after engine resize ---
-		// The Defold engine sets inline styles on app-container via resize_window_callback.
-		// We observe those changes and sync our zoom-container.
 		var resizeObserver = new ResizeObserver(function() {
 			syncContainerSize();
 		});
 		resizeObserver.observe(appContainer);
 
-		// Also sync on window resize (as a fallback)
 		window.addEventListener('resize', function() {
 			syncContainerSize();
 		});
 
-		// Initial sync after a short delay (engine needs time to set up)
+		// Initial sync after a short delay
 		setTimeout(syncContainerSize, 500);
 		setTimeout(syncContainerSize, 1000);
 		setTimeout(syncContainerSize, 2000);
