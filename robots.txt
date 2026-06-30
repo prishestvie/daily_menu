@@ -3,6 +3,9 @@ Allow: /
 Sitemap: https://menunaden.ru/sitemap.xml
 AdsTxt: https://menunaden.ru/ads.txt
 
+# IndexNow — ключ для быстрого уведомления поисковых систем об изменениях
+IndexNow: https://menunaden.ru/4e9e1b79-f56b-4fee-abe7-a3ac4403a01a.txt
+
 # Yandex-specific
 User-agent: Yandex
 Allow: /
