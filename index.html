@@ -91,6 +91,37 @@
 	}
 	</script>
 
+	<!-- === INDEXNOW — автоматическое уведомление поисковых систем об обновлениях === -->
+	<script>
+	(function() {
+		// Отправляем сигнал IndexNow при загрузке страницы,
+		// чтобы Яндекс и Bing узнали об обновлении главной страницы.
+		var indexNowKey = '4e9e1b79-f56b-4fee-abe7-a3ac4403a01a';
+		var siteUrl = 'https://menunaden.ru';
+		var currentUrl = window.location.href;
+
+		// Отправляем только если это главная страница (не рецепты и не служебные)
+		if (currentUrl === siteUrl + '/' || currentUrl === siteUrl) {
+			var payload = JSON.stringify({
+				host: 'menunaden.ru',
+				key: indexNowKey,
+				keyLocation: siteUrl + '/' + indexNowKey + '.txt',
+				urlList: [siteUrl + '/']
+			});
+
+			// Используем sendBeacon — он не блокирует загрузку страницы
+			if (navigator.sendBeacon) {
+				navigator.sendBeacon('https://yandex.com/indexnow', payload);
+			} else {
+				var xhr = new XMLHttpRequest();
+				xhr.open('POST', 'https://yandex.com/indexnow', true);
+				xhr.setRequestHeader('Content-Type', 'application/json');
+				xhr.send(payload);
+			}
+		}
+	})();
+	</script>
+
 	<!-- === YANDEX РСЯ (Рекламная Сеть Яндекса) — загрузчик === -->
 	<script>window.yaContextCb=window.yaContextCb||[]</script>
 	<script src="https://yandex.ru/ads/system/context.js" async></script>
